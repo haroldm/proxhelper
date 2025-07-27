@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
+import typer
 import sys
 import requests
 from pathlib import Path
+from typing_extensions import Annotated
 
 HYDRA_BASE = "https://hydra.nixos.org"
+
+app = typer.Typer()
 
 def download_file(url: str, dest_path: Path):
     with requests.get(url, stream=True, timeout=60) as r:
@@ -20,7 +24,7 @@ def download_file(url: str, dest_path: Path):
                         print(f"\r⬇ Downloading: {percent:.1f}% ({written // 1024} KB)", end="", flush=True)
         print("\n✅ Download complete.")
 
-def download_proxmox_lxc(version: str, dest_dir: Path, force: bool) -> Path:
+def get_nixos_lxc(version: str, dest_dir: Path, force: bool) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     job_url = f"{HYDRA_BASE}/job/nixos/release-{version}/nixos.proxmoxLXC.x86_64-linux"
@@ -48,18 +52,26 @@ def download_proxmox_lxc(version: str, dest_dir: Path, force: bool) -> Path:
     print(f"✅ Saved to: {out_path}")
     return out_path
 
-def main():
-    import argparse
-    parser = argparse.ArgumentParser(description="Download a NixOS Proxmox LXC image.")
-    parser.add_argument("target_dir", nargs="?", default="/var/lib/vz/template/cache", help="Directory to save the image")
-    parser.add_argument("--version", default="25.05", help="Release version (e.g. 25.05, 24.11, unstable). Default: 25.05")
-    parser.add_argument("-f", "--force", action="store_true", help="Force overwrite of existing files without prompting")
-    args = parser.parse_args()
+def validate_choices(value: str, valid: list[str], name: str):
+    if value not in valid:
+        raise typer.BadParameter(f"{name} must be one of {valid}")
+    return value
 
-    try:
-        download_proxmox_lxc(args.version, Path(args.target_dir), args.force)
-    except Exception as e:
-        sys.exit(f"ERROR: {e}")
+@app.command()
+def get_image(
+    type: Annotated[str, typer.Option(help="Image type (lxc, vm)")],
+    os: Annotated[str, typer.Option(help="Operating system (e.g., nixos)")],
+    version: Annotated[str, typer.Option(help="OS version (e.g. 25.05 or 'unstable')")],
+    dest_dir: Annotated[Path, typer.Option(help="Directory to save the image")] = Path("/var/lib/vz/template/cache"),
+    force: Annotated[bool, typer.Option(help="Overwrite existing file if present")] = False
+):
+    type = validate_choices(type, ["lxc"], "type")
+    os = validate_choices(os, ["nixos"], "os")
+
+    if os == "nixos" and type == "lxc":
+        return get_nixos_lxc(version, dest_dir, force)
+
+    print("❌ Unsupported combination of --type and --os.")
 
 if __name__ == "__main__":
-    main()
+    app()

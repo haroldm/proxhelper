@@ -1,0 +1,15 @@
+[project]
+name = "proxhelper"
+description = "Proxmox automation tools"
+version = "0.1.0"
+dependencies = [
+    "proxmoxer",
+    "toml",
+    "typer",
+    "requests"
+]
+requires-python = ">=3.8"
+
+[project.scripts]
+proxhelper = "proxhelper.cli:app"
+
